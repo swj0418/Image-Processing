@@ -1,0 +1,10 @@
+package reader;
+
+public class Main {
+	public static void main(String[] ar) {
+		ReaderTest T = new ReaderTest();
+		String path = "A:\\2017_Winter\\Programming\\JAVA\\Image_Processing\\Files\\coffee.jpg";
+		T.readImage(".\\Files/coffee.jpg");
+	}
+
+}

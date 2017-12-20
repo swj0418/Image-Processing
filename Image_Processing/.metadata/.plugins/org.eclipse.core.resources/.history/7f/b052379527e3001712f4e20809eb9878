@@ -1,0 +1,379 @@
+package reader;
+import java.util.*;
+import java.util.concurrent.*;
+
+import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageInputStream;
+import javax.swing.*;
+
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferInt;
+import java.awt.image.PixelGrabber;
+import java.awt.image.Raster;
+import java.awt.image.SinglePixelPackedSampleModel;
+import java.io.*;
+import java.nio.*;
+
+
+public class ReaderTest {
+	File imagefile = null;
+	BufferedReader bufferedreader = null;
+	ImageInputStream imageinput = null;
+	InputStreamReader streamreader = null;
+	BufferedImage bufferedimage = null;
+	DataBuffer databuffer = null;
+	
+	int width = 0;
+	int height = 0;
+	
+	
+	//Data Section
+	double MeanValue = 0;
+	double MeanRaw = 0;
+	
+	double[] deviation = null;
+	double[] refinedArray = null;
+	int[] retarray = null;
+	int[] absret = null;
+	
+	double minDeviation = 0;
+	double maxDeviation = 0;
+	double minRaw = 0;
+	double maxRaw = 0;
+	
+	
+	public void readImage(String filepath) {
+		imagefile = new File(filepath);
+		System.out.println("File path : " + imagefile.getPath());
+		
+		try {
+			bufferedimage = ImageIO.read(imagefile);
+			width = bufferedimage.getWidth();
+			height = bufferedimage.getHeight();
+			
+			System.out.println("Width : " + width + "    " + "Height : " + height);
+		} catch(Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void fileMetaData() {
+		System.out.println("RGB at 100, 100   :   " + bufferedimage.getRGB(100, 100));
+		System.out.println(bufferedimage.getTile(0, 0));
+	}
+	
+	public int[] storeimage(String filepath) {
+		retarray = new int[height * width];
+		Image image = bufferedimage;
+		PixelGrabber grabber = new PixelGrabber(image, 0, 0, width, height, retarray, 0, width);
+		try {
+			grabber.grabPixels();
+		} catch(InterruptedException e) {
+			e.printStackTrace();
+		}
+		return retarray;
+	}
+	
+	public void pixelfileout() {
+		try {
+			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(""
+					+ "A:\\2017_Winter\\Programming\\JAVA\\Image_Processing\\Files\\pixels.csv"))));
+			for(int i = 0; i< retarray.length; i++) {
+				writer.write(retarray[i] + ",");
+				if(i % width == width - 1) {
+					writer.write("\n");
+				}
+			}
+			
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		absret = retarray;
+		for(int i = 0; i < width * height; i++) {
+			absret[i] = Math.abs(absret[i]);
+		}
+		for(int i = 0; i < width * height; i++) {
+			MeanRaw += absret[i];
+		}
+		MeanRaw = MeanRaw / (width*height);
+		
+		minRaw = Math.abs(MeanRaw);
+		for(double v : absret) {
+			if(v <= minRaw) {
+				minRaw = v;
+			} else if(v >= maxDeviation) {
+				maxRaw = v;
+			}
+		}
+		
+		System.out.println("Raw values min-max ::::: Min : " + minRaw + "   Max : " + maxRaw);
+	}
+	
+	public void createPixelModel() {
+		databuffer = new DataBufferInt(50000000);
+		
+		System.out.println();
+		int bitMask[] = new int[]{0xff0000,0xff00,0xff,0xff000000};
+		SinglePixelPackedSampleModel sampleModel = new SinglePixelPackedSampleModel(bufferedimage.TYPE_INT_RGB,width,height,bitMask);
+		System.out.println("Single Pixel Packed Sample Created");
+		System.out.println("===========Sample model details========");
+		System.out.println("Height : " + sampleModel.getHeight());
+		System.out.println("Width : " + sampleModel.getWidth());
+		System.out.println("Number of bands : " + sampleModel.getNumBands());
+		System.out.println("Number of data elements : " + sampleModel.getNumDataElements());
+		System.out.println("============");
+		System.out.println("Sample size of the bands");
+		
+		for(int i = 0; i < 4; i++) {
+			System.out.println(i + " : " + sampleModel.getSampleSize(i));
+		}
+		System.out.println("============");
+		
+		System.out.println("Sample at 100, 100 ::::: " + sampleModel.getSample(100, 100, 3, databuffer));
+	}
+	
+	public void getMean() {
+		int datasize = width * height;
+		refinedArray = new double[retarray.length];
+		for(int i = 0; i < refinedArray.length; i++) {
+			refinedArray[i] = retarray[i];
+		}
+		for(int i = 0; i < refinedArray.length; i++) {
+			refinedArray[i] = refinedArray[i] / 100000.d;
+		}
+		
+		for(int i = 0; i < datasize; i++) {
+			MeanValue += refinedArray[i];
+		}
+		MeanValue = MeanValue / datasize;
+		System.out.println("Mean value of all the pixels : " + MeanValue);
+	}
+	
+	public void calculateDeviation() {
+		deviation = new double[width * height];
+		for(int i = 0; i < width * height; i++) {
+			deviation[i] = Math.abs(refinedArray[i] - MeanValue);
+		}
+	}
+	
+	public void printDeviation() {
+		/*
+		for(int i = 0 ; i < height * width; i++) {
+			System.out.print(deviation[i] + "\t");
+			if(i % width == width - 1) {
+				System.out.println();
+			}
+		}
+		*/ 
+		//Printing takes too much time
+		
+		try {
+			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(
+					"A:\\\\2017_Winter\\\\Programming\\\\JAVA\\\\Image_Processing\\\\Files\\\\deviations.csv"))));
+			
+			for(int i = 0; i < width * height; i++) {
+				writer.write(deviation[i] + ",");
+				if(i % width == width - 1) {
+					writer.write("\n");
+				}
+			}
+			writer.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		minDeviation = Math.abs(MeanValue);
+		for(double v : deviation) {
+			if(v <= minDeviation) {
+				minDeviation = v;
+			} else if(v >= maxDeviation) {
+				maxDeviation = v;
+			}
+		}
+		
+		System.out.println("Min : " + minDeviation + "   Max : " + maxDeviation);
+	}
+	
+	public void drawOutline() {
+		new frame();
+	}
+	
+	class frame extends JFrame {
+		frame() {
+			JFrame f = new JFrame("Outline");
+			f.setSize(width, height);
+			panel p = new panel();
+			f.add(p);
+			
+			f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+			f.setVisible(true);
+		}
+		
+		class panel extends JPanel {
+			
+			panel() {
+				
+			}
+			protected void paintComponent(Graphics g) {
+				super.paintComponents(g);
+				
+				/*
+				for(int i = 0; i < height; i++) {
+					for(int k = 0; k < width; k++) {
+						if(i != 0 & k != 0 && deviation[i + (i*k)] - deviation[i + ((i*k) - 1)] >= 5) {
+							g.drawOval(k, i, 1, 1);
+						}
+					}
+				}
+				*/
+				
+				/*
+				int iter = 0;
+				for(int i = 0; i < height; i++) {
+					for(int k = 0; k < width; k++) {
+						if(Math.abs(refinedArray[iter]) >= 60) {
+							g.drawOval(k, i, 1, 1);
+						}
+						iter++;
+					}
+				}
+				*/
+				
+				/*
+				int iter = 0;
+				for(int i = 0; i < height; i++) {
+					for(int k = 0; k < width; k++) {
+						if(i != 0 && k != 0 && (refinedArray[iter] - refinedArray[iter - 8] > 10)) {
+							g.drawOval(k, i, 1, 1);
+						}
+						iter++;
+					}
+				}
+				*/
+				
+				/*
+				double[] thr = new double[refinedArray.length];
+				for(int i = 0; i < refinedArray.length; i++) {
+					if(refinedArray[i] <= 50) {
+						thr[i] = 0;
+					} else if(refinedArray[i] > 50){
+						thr[i] = 1;
+					}
+				}
+				
+				
+				int iter = 0;
+				for(int i = 0; i < height; i++) {
+					for(int k = 0; k < width; k++) {
+						if((thr[iter] == 1)) {
+							g.drawOval(k, i, 1, 1);
+						}
+						iter++;
+					}
+				}
+				*/
+				double[] Hdiff = new double[refinedArray.length];
+				double[] Vdiff = new double[refinedArray.length];
+				double[] tmp = new double[refinedArray.length];
+				
+				for(int i = 1; i < tmp.length; i++) {
+					tmp[i] = (refinedArray[i - 1] - refinedArray[i]);
+				}
+				for(int i = width; i < tmp.length; i++) {
+					Vdiff[i] = (refinedArray[i - width] - refinedArray[i]);
+					/*
+					if(Vdiff[i] < -5) {
+						Vdiff[i] = 0;
+					} else if(Vdiff[i] >= 5) {
+						Vdiff[i] = 1;
+					}
+					*/
+				}
+				
+				for(int i = 1; i < Hdiff.length; i++) {
+					Hdiff[i] = (refinedArray[i] - refinedArray[i - 1]);
+					/*
+					if(Hdiff[i] < -5) {
+						Hdiff[i] = 0;
+					} else if(Hdiff[i] >= 5) {
+						Hdiff[i] = 1;
+					}
+					*/
+				}
+				
+				double[] cal = new double[Vdiff.length];
+				for(int i = 0; i < cal.length; i++) {
+					cal[i] = Math.sqrt(Math.pow(Vdiff[i], 2) + Math.pow(Hdiff[i], 2));
+				}
+				
+				double mincal = tmp[0]; double maxcal = tmp[1];
+				for(double v : cal) {
+					if(mincal > v) {
+						mincal = v;
+					} else if(maxcal < v) {
+						maxcal = v;
+					}
+				}
+				System.out.println("Min : " + mincal + "   Max : " + maxcal);
+				
+				
+				double min = tmp[0]; double max = tmp[1];
+				for(double v : tmp) {
+					if(min > v) {
+						min = v;
+					} else if(max < v) {
+						max = v;
+					}
+				}
+				
+				System.out.println("Min : " + min + "   Max : " + max);
+				System.out.println("Median : " + tmp[tmp.length / 2]);
+				
+				
+				
+				
+				int iter = 0;
+				for(int i = 0; i < height; i++) {
+					for(int k = 0; k < width; k++) {
+						double value = 0;
+						double median = 0;
+						int windowV = 20; int windowH = 20;
+						
+						ArrayList<Double> distribution = new ArrayList<Double>(); 
+						double maximum = cal[iter]; double minimum = cal[iter];
+						
+						if(iter > windowV * windowH && iter < cal.length - (windowV * windowH)) {
+							int count = iter - (windowV * windowH);
+							for(int u = iter - (windowV * windowH); u < iter + (windowV * windowH); u++) {
+								value += cal[u];
+								distribution.add(cal[u]);
+							}
+							value = value / (windowV * windowH);
+							median = distribution.get(windowV * windowH / 2);
+						} else {
+							value = 10;
+							median = 10;
+						}
+						
+						if(cal[iter] > median) {
+							g.drawRect(k, i, 1, 1);
+						}
+						iter++;
+					}
+				}
+				
+				//g.drawOval(50, 50, 100, 100);
+			}
+		}
+	}
+	
+	public void createImagefromPixel() {
+	}
+}
